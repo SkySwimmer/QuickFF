@@ -1,0 +1,6 @@
+# Wrapper downloaded stuff
+.polytool
+.polytool-version
+build/
+polylocal/
+deps/
