@@ -1,3 +1,7 @@
 rootProject.name = 'quickff'
 include("connective-http")
 project(":connective-http").projectDir = file("deps/connective-http")
+include("quicktools-githubwebhooksbase")
+project(":quicktools-githubwebhooksbase").projectDir = file("deps/quicktools-githubwebhooksbase")
+include(":quicktools-githubwebhooksbase:connective-http")
+project(":quicktools-githubwebhooksbase:connective-http").projectDir = file("deps/quicktools-githubwebhooksbasedeps/connective-http")
