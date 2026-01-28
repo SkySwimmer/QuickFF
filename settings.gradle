@@ -1,7 +1,3 @@
 rootProject.name = 'quickff'
 include("connective-http")
 project(":connective-http").projectDir = file("deps/connective-http")
-include("quicktools-webserverbase")
-project(":quicktools-webserverbase").projectDir = file("deps/quicktools-webserverbase")
-include(":quicktools-webserverbase:connective-http")
-project(":quicktools-webserverbase:connective-http").projectDir = file("deps/quicktools-webserverbase/deps/connective-http")
