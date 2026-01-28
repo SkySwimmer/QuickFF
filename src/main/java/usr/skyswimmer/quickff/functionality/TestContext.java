@@ -6,6 +6,9 @@ import org.asf.connective.lambda.LambdaPushContext;
 import org.asf.quicktools.api.context.BaseContext;
 import org.asf.quicktools.server.BaseControllerServer;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonParser;
+
 public class TestContext implements BaseContext {
 
 	private BaseControllerServer instance;
@@ -45,6 +48,13 @@ public class TestContext implements BaseContext {
 		String msg = "";
 		if (req.hasHeader("Content-Type"))
 			msg += " [" + req.getHeader("Content-Type") + "]";
+		if (!body.isEmpty() && body.startsWith("{")) {
+			// Try json
+			try {
+				body = new Gson().newBuilder().setPrettyPrinting().create().toJson(JsonParser.parseString(body));
+			} catch (Exception e) {
+			}
+		}
 		if (!body.isEmpty())
 			msg += ":\n" + body;
 		return msg;
