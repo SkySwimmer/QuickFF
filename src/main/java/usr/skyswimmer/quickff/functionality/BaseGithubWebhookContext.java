@@ -21,40 +21,12 @@ public class BaseGithubWebhookContext implements BaseContext {
 
 	@Override
 	public void initServer(BaseControllerServer server) {
-		// TODO Auto-generated method stub
 		instance = server;
-		server = server;
 	}
 
 	@Override
 	public void initWebserver(BaseControllerServer qFFS, ConnectiveHttpServer server) {
-		// TODO Auto-generated method stub
 		webserver = server;
-		server = server;
-	}
-
-	@Override
-	public void startServer(BaseControllerServer server) {
-		// TODO Auto-generated method stub
-		server = server;
-	}
-
-	@Override
-	public void startWebserver(BaseControllerServer qFFS, ConnectiveHttpServer server) {
-		// TODO Auto-generated method stub
-		server = server;
-	}
-
-	@Override
-	public void stopServer(BaseControllerServer server) {
-		// TODO Auto-generated method stub
-		server = server;
-	}
-
-	@Override
-	public void stopWebserver(BaseControllerServer qFFS, ConnectiveHttpServer server) {
-		// TODO Auto-generated method stub
-		server = server;
 	}
 
 }

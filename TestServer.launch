@@ -13,7 +13,7 @@
     <booleanAttribute key="org.eclipse.jdt.launching.ATTR_USE_CLASSPATH_ONLY_JAR" value="false"/>
     <stringAttribute key="org.eclipse.jdt.launching.MAIN_TYPE" value="usr.skyswimmer.quickff.tools.TestServer"/>
     <stringAttribute key="org.eclipse.jdt.launching.MODULE_NAME" value="quickff"/>
-    <stringAttribute key="org.eclipse.jdt.launching.PROGRAM_ARGUMENTS" value="testserver.json"/>
+    <stringAttribute key="org.eclipse.jdt.launching.PROGRAM_ARGUMENTS" value="simpletest.json"/>
     <stringAttribute key="org.eclipse.jdt.launching.PROJECT_ATTR" value="quickff"/>
     <stringAttribute key="org.eclipse.jdt.launching.WORKING_DIRECTORY" value="${workspace_loc:quickff}/run"/>
 </launchConfiguration>

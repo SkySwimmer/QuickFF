@@ -6,10 +6,8 @@ import java.io.IOException;
 import org.asf.cyan.fluid.bytecode.FluidClassPool;
 import org.asf.quicktools.server.BaseControllerServer;
 
-import usr.skyswimmer.quickff.functionality.BaseGithubWebhookContext;
 import usr.skyswimmer.quickff.functionality.TestContext;
-import usr.skyswimmer.quickff.functionality.TestContext2;
-import usr.skyswimmer.quickff.functionality.TestContextExtensions;
+import usr.skyswimmer.quickff.functionality.BaseGithubWebhookContext;
 
 public class TestServer {
 
@@ -32,6 +30,7 @@ public class TestServer {
 		FluidClassPool pool = FluidClassPool.create();
 		BaseControllerServer server = new BaseControllerServer(configFile, pool, "quickff");
 		server.addContext(new TestContext());
+		server.addContext(new BaseGithubWebhookContext());
 
 		// Import
 		pool.importAllSources();
