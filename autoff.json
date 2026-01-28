@@ -15,7 +15,7 @@
         // Its possible to disable the formatters using `RAW:...`
         "major-*-develop": [
             "main-develop"
-        ]
+        ],
         "major-*-testing": [
             "major-{1}-develop",
             "main-testing",
