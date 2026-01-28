@@ -37,7 +37,8 @@ public class TestServer {
 		server.onWebhookActivate().addEventHandler(event -> {
 			// Log
 			logger.info("Received " + event.handler().getRequestMethod() + " " + event.handler().getRequestPath()
-					+ " : " + event.getEvent() + ":\n"
+					+ "\nEvent: " + event.getEvent()
+					+ (event.getApp() != null ? "\nApp: " + event.getApp().getId() : "") + "\n\nContent:\n"
 					+ new Gson().newBuilder().setPrettyPrinting().create().toJson(event.getEventData()));
 		});
 
