@@ -20,6 +20,7 @@ public class AutoFfConfig implements ISerializedJsonEntity {
 	@Override
 	public void loadFromJson(JsonObject source, String scope) throws IOException {
 		enabled = JsonUtils.getBooleanOrError(scope, source, "enabled");
+
 		JsonObject branchesList = JsonUtils.getObjectOrError(scope, source, "branches");
 		for (String key : branchesList.keySet()) {
 			JsonArray arr = JsonUtils.getArrayOrError(scope + " -> branches -> " + key, branchesList.get(key));
