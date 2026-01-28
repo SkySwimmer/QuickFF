@@ -13,6 +13,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import usr.skyswimmer.quickff.config.ServerHostletEntity;
+import usr.skyswimmer.quickff.config.WebhookEntity;
 import usr.skyswimmer.quickff.connective.logger.Log4jManagerImpl;
 import usr.skyswimmer.quickff.util.HashUtils;
 import usr.skyswimmer.quickff.util.JsonUtils;
@@ -63,8 +64,7 @@ public class TestServer {
 		// Create server
 		logger.info("Loading server settings...");
 		ServerHostletEntity host = new ServerHostletEntity();
-		host.loadFromJson(config, "config");
-		String secret = JsonUtils.getElementOrError("config", config, "secret").getAsString();
+		host.loadFromJson(JsonUtils.getElementOrError("config", config, "webserver").getAsJsonObject(), "config");
 
 		// Adapter
 		if (ConnectiveHttpServer.findAdapter(host.adapter.protocol) == null)
@@ -76,10 +76,51 @@ public class TestServer {
 
 		// Create server
 		server.registerHandler("/", (LambdaPushContext req) -> {
+			String path = req.getRequestPath();
+
+			// Load config
+			JsonObject conf;
+			try {
+				conf = JsonUtils.loadConfig(configFile);
+			} catch (Exception e) {
+				logger.error("Could not load configuration file: " + configF, e);
+				req.setResponseStatus(500, "Internal Server Error");
+				return;
+			}
+
+			// Get webhooks list
+			JsonObject webhooksConf;
+			try {
+				webhooksConf = JsonUtils.getElementOrError("config", conf, "webhooks").getAsJsonObject();
+			} catch (Exception e) {
+				logger.error(
+						"Could not load configuration file: " + configF + ": failure loading webhooks configuration",
+						e);
+				req.setResponseStatus(500, "Internal Server Error");
+				return;
+			}
+
+			// Get webhook
+			if (!webhooksConf.has(path)) {
+				// Cancel
+				req.setResponseStatus(404, "Not Found");
+				return;
+			}
+
+			// Get webhook
+			WebhookEntity webhook = new WebhookEntity();
+			try {
+				webhook.loadFromJson(webhooksConf.get(path).getAsJsonObject(), "webhook " + path);
+			} catch (Exception e) {
+				logger.error("Could not load webhook " + path + ": error loading webhook sheet", e);
+				req.setResponseStatus(500, "Internal Server Error");
+				return;
+			}
+
 			// Log
 			logger.info("Received " + req.getRequestMethod() + " " + req.getRequestPath()
-					+ handleRequestBody(req.getRequestBodyAsString(), req, secret));
-		}, true, true, "POST", "DELETE", "GET", "PUT");
+					+ handleRequestBody(req.getRequestBodyAsString(), req, webhook.secret));
+		});
 
 		// Start
 		logger.info("Starting server...");
