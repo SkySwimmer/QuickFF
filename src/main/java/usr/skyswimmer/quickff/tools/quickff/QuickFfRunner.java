@@ -4,11 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -16,29 +12,22 @@ import usr.skyswimmer.githubwebhooks.api.apps.GithubApp;
 import usr.skyswimmer.githubwebhooks.api.apps.GithubAppInstallationTokens;
 import usr.skyswimmer.githubwebhooks.api.util.FileUtils;
 import usr.skyswimmer.githubwebhooks.api.util.HashUtils;
-import usr.skyswimmer.githubwebhooks.api.util.JsonUtils;
 import usr.skyswimmer.githubwebhooks.api.util.tasks.async.AsyncTaskManager;
 import usr.skyswimmer.quickff.tools.entities.AutoFfConfig;
 import usr.skyswimmer.quickff.tools.entities.WebhookPushEventEntity;
 
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.ListBranchCommand.ListMode;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.transport.CredentialsProvider;
-import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -170,37 +159,38 @@ public class QuickFfRunner {
 				// Get credentials
 				try {
 					// Prepare repository
-					logger.info("Preparing repository...");
+					logger.info("[" + repoMemory.name + "] Preparing repository...");
 					File repoPath = repoMemory.repoDir;
 					File gitCache = new File(repoPath, ".git");
 					Git client = null;
 					try {
 						if (!gitCache.exists()) {
 							// Clone
-							logger.info("Cloning " + repoMemory.name + "...");
+							logger.info("[" + repoMemory.name + "] Cloning " + repoMemory.name + "...");
 							client = Git.cloneRepository().setURI(push.repository.httpUrl).setDirectory(repoPath)
-									.setCredentialsProvider(createCredentialProvider(app, push.installation.id))
+									.setCredentialsProvider(
+											createCredentialProvider(repoMemory, app, push.installation.id))
 									.setNoCheckout(true).call();
-							logger.info("Completed successfully!");
+							logger.info("[" + repoMemory.name + "] Completed successfully!");
 						} else {
 							// Fetch
-							logger.info("Fetching " + repoMemory.name + "...");
+							logger.info("[" + repoMemory.name + "] Fetching " + repoMemory.name + "...");
 							client = Git.open(repoPath);
-							client.fetch().setCredentialsProvider(createCredentialProvider(app, push.installation.id))
-									.call();
-							logger.info("Completed successfully!");
+							client.fetch().setCredentialsProvider(
+									createCredentialProvider(repoMemory, app, push.installation.id)).call();
+							logger.info("[" + repoMemory.name + "] Completed successfully!");
 						}
 
 						// Get repository
-						logger.info("Loading repository...");
+						logger.info("[" + repoMemory.name + "] Loading repository...");
 						Repository repo = client.getRepository();
 
 						// Load ref
-						logger.info("Finding branch object....");
+						logger.info("[" + repoMemory.name + "] Finding branch object....");
 						ObjectId id = repo.resolve("refs/remotes/origin/" + branch);
 
 						// Load autoff.json
-						logger.info("Finding configuration...");
+						logger.info("[" + repoMemory.name + "] Finding configuration...");
 						RevWalk revWalk = new RevWalk(repo);
 						RevCommit currentCommit = revWalk.parseCommit(id);
 						revWalk.close();
@@ -214,7 +204,7 @@ public class QuickFfRunner {
 							treeWalk.close();
 
 							// Close
-							logger.info("No autoff.json configuration, exiting...");
+							logger.info("[" + repoMemory.name + "] No autoff.json configuration, exiting...");
 							return;
 						}
 
@@ -223,7 +213,7 @@ public class QuickFfRunner {
 						treeWalk.close();
 
 						// Get config
-						logger.info("Reading configuration...");
+						logger.info("[" + repoMemory.name + "] Reading configuration...");
 						ObjectLoader objR = repo.open(obj);
 						InputStream sIn = objR.openStream();
 						InputStreamReader reader = new InputStreamReader(sIn);
@@ -250,17 +240,74 @@ public class QuickFfRunner {
 							throw e;
 						}
 						sIn.close();
+						if (!config.enabled) {
+							logger.info("[" + repoMemory.name + "] QuickFF was disabled, exiting...");
+							return;
+						}
 
 						// Find branch
-						logger.info("Matching branch sets...");
+						logger.info("[" + repoMemory.name + "] Finding matching branch sets...");
+						String[] outputBranches = null;
+						String[] parameters = new String[0];
+						for (String pattern : config.branches.keySet()) {
+							String ent = pattern;
+							if (pattern.startsWith("RXM:")) {
+								// Regex matcher
+								if (pattern.startsWith("RXM:"))
+									pattern = pattern.substring("RXM:".length());
 
-						branch = branch;
+								// Match
+								if (branch.matches(pattern)) {
+									// Found
+									outputBranches = config.branches.get(ent);
+									logger.info("[" + repoMemory.name + "] Matched branch set: " + ent);
+									break;
+								}
+							} else if (pattern.startsWith("WCM:")
+									|| (!pattern.startsWith("RAW:") && pattern.contains("*"))) {
+								// Wildcard matcher
+								if (pattern.startsWith("WCM:"))
+									pattern = pattern.substring("WCM:".length());
+
+								// FIXME
+							} else {
+								// Raw
+								if (pattern.startsWith("RAW:"))
+									pattern = pattern.substring("RAW:".length());
+
+								// Check
+								if (pattern.equalsIgnoreCase(branch)) {
+									// Found
+									outputBranches = config.branches.get(ent);
+									logger.info("[" + repoMemory.name + "] Matched branch set: " + ent);
+									break;
+								}
+							}
+						}
+						if (outputBranches != null) {
+							// Go through target branches
+							String[] targets = new String[outputBranches.length];
+							for (int i = 0; i < targets.length; i++) {
+								String target = outputBranches[i];
+								int ind = 0;
+								for (String param : parameters) {
+									target = target.replace("{" + (ind++ + 1) + "}", param);
+								}
+								targets[i] = target;
+							}
+
+							// Handle
+							targets = targets;
+						} else {
+							// No targets found
+							logger.info("[" + repoMemory.name + "] Branch did not match any configured set, ignored.");
+						}
 					} finally {
 						// Close
 						client.close();
 					}
 				} catch (Exception e) {
-					logger.error("An error occurred running QuickFF, cancelled.", e);
+					logger.error("[" + repoMemory.name + "] An error occurred running QuickFF, cancelled.", e);
 				}
 			} finally {
 				// Close
@@ -269,12 +316,12 @@ public class QuickFfRunner {
 		}
 	}
 
-	private static CredentialsProvider createCredentialProvider(GithubApp app, String installationId)
-			throws IOException {
+	private static CredentialsProvider createCredentialProvider(RepoMemoryData repoMemory, GithubApp app,
+			String installationId) throws IOException {
 		try {
-			logger.info("Authenticating application with server...");
+			logger.info("[" + repoMemory.name + "] Authenticating application with server...");
 			String token = GithubAppInstallationTokens.getOrRequestInstallationAuthToken(app, installationId);
-			logger.info("Authentication successful. Beginning process...");
+			logger.info("[" + repoMemory.name + "] Authentication successful. Beginning process...");
 			return new UsernamePasswordCredentialsProvider("x-access-token", token);
 		} catch (IOException e) {
 			throw new IOException("Authenticating through API failed", e);
