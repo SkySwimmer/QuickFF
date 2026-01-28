@@ -414,6 +414,7 @@ public class QuickFfRunner {
 											client.push().setCredentialsProvider(createCredentialProvider(repoMemory,
 													app, push.installation.id, "Pushing " + target + " to upstream..."))
 													.call();
+											
 										} finally {
 											client.checkout().setName(branch).call();
 											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
