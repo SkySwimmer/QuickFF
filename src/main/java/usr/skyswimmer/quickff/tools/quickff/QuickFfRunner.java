@@ -414,7 +414,7 @@ public class QuickFfRunner {
 											client.push().setCredentialsProvider(createCredentialProvider(repoMemory,
 													app, push.installation.id, "Pushing " + target + " to upstream..."))
 													.call();
-											
+
 										} finally {
 											client.checkout().setName(branch).call();
 											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
@@ -482,7 +482,7 @@ public class QuickFfRunner {
 			String installationId, String event) throws IOException {
 		try {
 			logger.info("[" + repoMemory.name + "] Authenticating application with server...");
-			String token = GithubAppInstallationTokens.getOrRequestInstallationAuthToken(app, installationId);
+			String token = GithubAppInstallationTokens.requestInstallationAuthToken(app, installationId);
 			logger.info("[" + repoMemory.name + "] Authentication successful!");
 			logger.info("[" + repoMemory.name + "] " + event);
 			return new UsernamePasswordCredentialsProvider("x-access-token", token);
