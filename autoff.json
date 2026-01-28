@@ -71,7 +71,7 @@
             "major-{1}-experimental",
             "major-{1}-staging",
             "major-{1}-testing",
-            "major-{1}-develop"
+            "major-{1}-develop",
             "main-experimental",
             "main-staging",
             "main-testing",
