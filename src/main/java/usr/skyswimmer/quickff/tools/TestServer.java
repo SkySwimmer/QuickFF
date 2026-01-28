@@ -32,9 +32,6 @@ public class TestServer {
 		FluidClassPool pool = FluidClassPool.create();
 		BaseControllerServer server = new BaseControllerServer(configFile, pool, "quickff");
 		server.addContext(new TestContext());
-		server.addContext(new TestContext2());
-		server.addContext(new TestContextExtensions());
-		server.addContext(new BaseGithubWebhookContext());
 
 		// Import
 		pool.importAllSources();
