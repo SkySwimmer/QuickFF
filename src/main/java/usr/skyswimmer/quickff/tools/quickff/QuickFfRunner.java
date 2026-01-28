@@ -251,8 +251,16 @@ public class QuickFfRunner {
 							}
 
 							// Send failed check
-							// FIXME
-
+							try {
+								JsonObject payload = new JsonObject();
+								payload.addProperty("state", "error");
+								payload.addProperty("context", "QuickFF");
+								payload.addProperty("description", "Configuration error in autoff.json");
+								app.appInstallationApiRequest(push.installation.id,
+										"/repos/" + push.repository.fullName + "/statuses/" + currentCommit.getName(),
+										"POST", payload);
+							} catch (IOException e2) {
+							}
 							// Throw
 							throw e;
 						}
@@ -414,7 +422,6 @@ public class QuickFfRunner {
 											client.push().setCredentialsProvider(createCredentialProvider(repoMemory,
 													app, push.installation.id, "Pushing " + target + " to upstream..."))
 													.call();
-											throw new Exception("test");
 										} finally {
 											client.checkout().setName(branch).call();
 											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
@@ -460,7 +467,8 @@ public class QuickFfRunner {
 								try {
 									JsonObject payload = new JsonObject();
 									payload.addProperty("state", "error");
-									payload.addProperty("decsription", "Fast-forwarding failed");
+									payload.addProperty("context", "QuickFF");
+									payload.addProperty("description", "Fast-forwarding failed");
 									app.appInstallationApiRequest(push.installation.id, "/repos/"
 											+ push.repository.fullName + "/statuses/" + currentCommit.getName(), "POST",
 											payload);
