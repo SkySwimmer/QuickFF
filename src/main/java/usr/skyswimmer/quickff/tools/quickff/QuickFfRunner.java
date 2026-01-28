@@ -275,7 +275,11 @@ public class QuickFfRunner {
 								WildcardPatternMatcher matcher = new WildcardPatternMatcher(pattern);
 								PatternMatchResult res = matcher.match(branch);
 								if (res.isMatch()) {
+									// Found
+									outputBranches = config.branches.get(ent);
 									parameters = res.getParameters();
+									logger.info("[" + repoMemory.name + "] Matched branch set: " + ent);
+									break;
 								}
 							} else {
 								// Raw
@@ -291,7 +295,7 @@ public class QuickFfRunner {
 								}
 							}
 						}
-						if (outputBranches != null) {
+						if (outputBranches != null && outputBranches.length != 0) {
 							// Go through target branches
 							String[] targets = new String[outputBranches.length];
 							for (int i = 0; i < targets.length; i++) {
@@ -303,7 +307,14 @@ public class QuickFfRunner {
 								targets[i] = target;
 							}
 
-							// Handle
+							// Found matches
+							String branchesToPushTo = "";
+							for (String target : targets) {
+								if (!branchesToPushTo.isEmpty())
+									branchesToPushTo += ", ";
+								branchesToPushTo += target;
+							}
+							logger.info("Found list of branches to push to: " + branchesToPushTo);
 							targets = targets;
 						} else {
 							// No targets found
