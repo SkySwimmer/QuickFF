@@ -190,6 +190,11 @@ public class QuickFfRunner {
 						// Load ref
 						logger.info("[" + repoMemory.name + "] Finding branch object....");
 						ObjectId id = repo.resolve("refs/remotes/origin/" + branch);
+						if (id == null) {
+							// Close
+							logger.info("[" + repoMemory.name + "] Branch not found, exiting...");
+							return;
+						}
 
 						// Load autoff.json
 						logger.info("[" + repoMemory.name + "] Finding configuration...");
@@ -314,8 +319,30 @@ public class QuickFfRunner {
 									branchesToPushTo += ", ";
 								branchesToPushTo += target;
 							}
-							logger.info("Found list of branches to push to: " + branchesToPushTo);
-							targets = targets;
+							logger.info("[" + repoMemory.name + "] Found list of branches to fast-forward: "
+									+ branchesToPushTo);
+
+							// Push for branches
+							String failedBranches = "";
+							for (String target : targets) {
+								// Log
+								logger.info("[" + repoMemory.name + "] Checking if needing to fast-forward " + target
+										+ "...");
+
+								// Get branch
+								ObjectId targetId = repo.resolve("refs/remotes/origin/" + target);
+								if (targetId == null) {
+									// Close
+									logger.info("[" + repoMemory.name + "] Branch not found, skipping...");
+									continue;
+								}
+
+								// Get last commit
+								revWalk = new RevWalk(repo);
+								RevCommit lastCommit = revWalk.parseCommit(targetId);
+								revWalk.close();
+								lastCommit = lastCommit;
+							}
 						} else {
 							// No targets found
 							logger.info("[" + repoMemory.name + "] Branch did not match any configured set, ignored.");

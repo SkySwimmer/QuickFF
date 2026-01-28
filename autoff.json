@@ -7,10 +7,6 @@
             "testbranch2"
         ],
 
-        "*-*-*": [
-            "main-{1}-{2}"
-        ],
-
         // Patterns for the development branch lifecycle
         // Patterns support wildcard logic and regex logic, but only wildcards support parameter insertion
         //
