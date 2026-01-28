@@ -72,8 +72,10 @@ dependencies {
 	implementation 'org.ow2.asm:asm-tree:9.4'
 	implementation 'org.ow2.asm:asm-commons:9.4'
 	
-	implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.19.0'
-	implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.19.0'
+	implementation group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.25.3'
+	implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.25.3'
+	
+	implementation group: 'org.apache.logging.log4j', name: 'log4j-slf4j2-impl', version: '2.25.3'
 }
 
 project.configurations.implementation.canBeResolved = true
