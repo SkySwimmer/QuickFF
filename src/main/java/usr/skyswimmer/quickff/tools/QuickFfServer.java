@@ -10,7 +10,6 @@ import org.asf.connective.lambda.LambdaPushContext;
 import com.google.gson.JsonObject;
 
 import usr.skyswimmer.githubwebhooks.api.apps.GithubApp;
-import usr.skyswimmer.githubwebhooks.api.config.WebhookEntity;
 import usr.skyswimmer.githubwebhooks.api.server.GithubWebhookEventServer;
 import usr.skyswimmer.githubwebhooks.api.util.tasks.async.AsyncTaskManager;
 import usr.skyswimmer.quickff.tools.entities.WebhookPushEventEntity;
@@ -47,7 +46,6 @@ public class QuickFfServer {
 			if (event.getEvent().equals("push")) {
 				// Get fields
 				LambdaPushContext req = event.handler();
-				WebhookEntity hook = event.getWebhook();
 				GithubApp app = event.getApp();
 				JsonObject hookData = event.getEventData();
 				if (app == null) {

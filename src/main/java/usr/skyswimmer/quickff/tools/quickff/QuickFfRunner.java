@@ -12,6 +12,8 @@ import usr.skyswimmer.githubwebhooks.api.apps.GithubApp;
 import usr.skyswimmer.githubwebhooks.api.apps.GithubAppInstallationTokens;
 import usr.skyswimmer.githubwebhooks.api.util.FileUtils;
 import usr.skyswimmer.githubwebhooks.api.util.HashUtils;
+import usr.skyswimmer.githubwebhooks.api.util.patterns.PatternMatchResult;
+import usr.skyswimmer.githubwebhooks.api.util.patterns.WildcardPatternMatcher;
 import usr.skyswimmer.githubwebhooks.api.util.tasks.async.AsyncTaskManager;
 import usr.skyswimmer.quickff.tools.entities.AutoFfConfig;
 import usr.skyswimmer.quickff.tools.entities.WebhookPushEventEntity;
@@ -269,7 +271,12 @@ public class QuickFfRunner {
 								if (pattern.startsWith("WCM:"))
 									pattern = pattern.substring("WCM:".length());
 
-								// FIXME
+								// Match pattern
+								WildcardPatternMatcher matcher = new WildcardPatternMatcher(pattern);
+								PatternMatchResult res = matcher.match(branch);
+								if (res.isMatch()) {
+									parameters = res.getParameters();
+								}
 							} else {
 								// Raw
 								if (pattern.startsWith("RAW:"))
