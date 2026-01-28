@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.HashMap;
+import java.util.List;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -19,8 +21,10 @@ import usr.skyswimmer.quickff.tools.entities.AutoFfConfig;
 import usr.skyswimmer.quickff.tools.entities.WebhookPushEventEntity;
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.ListBranchCommand.ListMode;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
@@ -341,6 +345,22 @@ public class QuickFfRunner {
 								revWalk = new RevWalk(repo);
 								RevCommit lastCommit = revWalk.parseCommit(targetId);
 								revWalk.close();
+								logger.info("[" + repoMemory.name + "] Last commit of " + target + ": "
+										+ lastCommit.getName());
+
+								// Check present in current branch
+								boolean found = false;
+								List<Ref> refs = client.branchList().setListMode(ListMode.REMOTE)
+										.setContains(lastCommit.getName()).call();
+								for (Ref ref : refs) {
+									String name = ref.getName();
+									if (name.equals("refs/remotes/origin/" + branch)) {
+										found = true;
+										break;
+									}
+								}
+
+								// Check found
 								lastCommit = lastCommit;
 							}
 						} else {
