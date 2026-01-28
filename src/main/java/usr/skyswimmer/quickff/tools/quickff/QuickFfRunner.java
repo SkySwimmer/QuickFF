@@ -4,7 +4,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import org.apache.logging.log4j.LogManager;
@@ -14,8 +16,9 @@ import usr.skyswimmer.githubwebhooks.api.apps.GithubApp;
 import usr.skyswimmer.githubwebhooks.api.apps.GithubAppInstallationTokens;
 import usr.skyswimmer.githubwebhooks.api.util.FileUtils;
 import usr.skyswimmer.githubwebhooks.api.util.HashUtils;
+import usr.skyswimmer.githubwebhooks.api.util.JsonUtils;
 import usr.skyswimmer.githubwebhooks.api.util.tasks.async.AsyncTaskManager;
-
+import usr.skyswimmer.quickff.tools.entities.AutoFfConfig;
 import usr.skyswimmer.quickff.tools.entities.WebhookPushEventEntity;
 
 import org.eclipse.jgit.api.Git;
@@ -34,6 +37,8 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -222,9 +227,10 @@ public class QuickFfRunner {
 						ObjectLoader objR = repo.open(obj);
 						InputStream sIn = objR.openStream();
 						InputStreamReader reader = new InputStreamReader(sIn);
-						JsonObject config;
+						AutoFfConfig config = new AutoFfConfig();
 						try {
-							config = JsonParser.parseReader(reader).getAsJsonObject();
+							JsonObject confJson = JsonParser.parseReader(reader).getAsJsonObject();
+							config.loadFromJson(confJson, "autoff.json");
 						} catch (Exception e) {
 							// Error
 							sIn.close();
@@ -244,6 +250,9 @@ public class QuickFfRunner {
 							throw e;
 						}
 						sIn.close();
+
+						// Find branch
+						logger.info("Matching branch sets...");
 
 						branch = branch;
 					} finally {
