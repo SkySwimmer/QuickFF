@@ -20,8 +20,11 @@ import usr.skyswimmer.githubwebhooks.api.util.tasks.async.AsyncTaskManager;
 import usr.skyswimmer.quickff.tools.entities.AutoFfConfig;
 import usr.skyswimmer.quickff.tools.entities.WebhookPushEventEntity;
 
+import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand.ListMode;
+import org.eclipse.jgit.api.MergeCommand.FastForwardMode;
+import org.eclipse.jgit.api.ResetCommand.ResetType;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.Ref;
@@ -174,16 +177,16 @@ public class QuickFfRunner {
 							// Clone
 							logger.info("[" + repoMemory.name + "] Cloning " + repoMemory.name + "...");
 							client = Git.cloneRepository().setURI(push.repository.httpUrl).setDirectory(repoPath)
-									.setCredentialsProvider(
-											createCredentialProvider(repoMemory, app, push.installation.id))
+									.setCredentialsProvider(createCredentialProvider(repoMemory, app,
+											push.installation.id, "Cloning " + repoMemory.name + "..."))
 									.setNoCheckout(true).call();
 							logger.info("[" + repoMemory.name + "] Completed successfully!");
 						} else {
 							// Fetch
 							logger.info("[" + repoMemory.name + "] Fetching " + repoMemory.name + "...");
 							client = Git.open(repoPath);
-							client.fetch().setCredentialsProvider(
-									createCredentialProvider(repoMemory, app, push.installation.id)).call();
+							client.fetch().setCredentialsProvider(createCredentialProvider(repoMemory, app,
+									push.installation.id, "Fetching " + repoMemory.name + "...")).call();
 							logger.info("[" + repoMemory.name + "] Completed successfully!");
 						}
 
@@ -246,6 +249,9 @@ public class QuickFfRunner {
 										+ "/commits/" + currentCommit.getName() + "/comments", "POST", payload);
 							} catch (IOException e2) {
 							}
+
+							// Send failed check
+							// FIXME
 
 							// Throw
 							throw e;
@@ -360,8 +366,98 @@ public class QuickFfRunner {
 									}
 								}
 
-								// Check found
-								lastCommit = lastCommit;
+								// Check result
+								if (found) {
+									// Log
+									try {
+										logger.info(
+												"[" + repoMemory.name + "] Fast-forward needed for " + target + "!");
+
+										// Fast-forward
+										try {
+											// Checkout
+											logger.info("[" + repoMemory.name + "] Checking out " + target + "...");
+											client.checkout().setName(branch).call();
+											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
+											ObjectId currentBranch = repo.resolve("refs/heads/" + target);
+											if (currentBranch == null) {
+												// Checkout new
+												client.checkout().setName(target).setCreateBranch(true)
+														.setUpstreamMode(SetupUpstreamMode.TRACK)
+														.setStartPoint("origin/" + target).call();
+											} else {
+												// Checkout existing
+												client.checkout().setName(target).call();
+												client.reset().setMode(ResetType.HARD).setRef("origin/" + target)
+														.call();
+
+												// Update
+												logger.info("[" + repoMemory.name + "] Updating " + target + "...");
+												client.pull().setRemote("origin").setRemoteBranchName(target)
+														.setCredentialsProvider(createCredentialProvider(repoMemory,
+																app, push.installation.id,
+																"Pulling " + target + " from upstream..."))
+														.call();
+											}
+
+											// Pull
+											logger.info("[" + repoMemory.name + "] Fast-forwarding " + target + " from "
+													+ branch + "...");
+											client.pull().setRemote("origin").setRemoteBranchName(branch)
+													.setCredentialsProvider(createCredentialProvider(repoMemory, app,
+															push.installation.id, "Fast-forwarding " + target + "..."))
+													.setFastForward(FastForwardMode.FF_ONLY).call();
+
+											// Merge succeeded
+											logger.info(
+													"[" + repoMemory.name + "] Merge succeeded, preparing to push...");
+											client.push().setCredentialsProvider(createCredentialProvider(repoMemory,
+													app, push.installation.id, "Pushing " + target + " to upstream..."))
+													.call();
+										} finally {
+											client.checkout().setName(branch).call();
+											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
+										}
+									} catch (Exception e) {
+										// Log
+										logger.error("[" + repoMemory.name
+												+ "] An error occurred while fast-forwarding, cancelled.", e);
+
+										// Save error
+										if (!failedBranches.isEmpty())
+											failedBranches += "\n";
+										failedBranches += " - " + target + ": " + e.getMessage();
+									}
+								} else {
+									logger.info("[" + repoMemory.name + "] Fast-forward not possible for " + target
+											+ "! Branches diverged!");
+								}
+							}
+
+							// Check result
+							logger.info("[" + repoMemory.name + "] Finished!");
+							if (!failedBranches.isEmpty()) {
+								// Log
+								logger.error(
+										"Some branches could not be fast-forwarded due to errors that occurred during the merge process:\n"
+												+ failedBranches);
+
+								// Send comment to commit
+								try {
+									JsonObject payload = new JsonObject();
+									payload.addProperty("body",
+											"Some branches could not be fast-forwarded due to errors that occurred during the merge process:\n"
+													+ failedBranches);
+									app.appInstallationApiRequest(push.installation.id,
+											"/repos/" + push.repository.fullName + "/commits/" + currentCommit.getName()
+													+ "/comments",
+											"POST", payload);
+								} catch (IOException e2) {
+								}
+
+								// Send failed check
+								// FIXME
+
 							}
 						} else {
 							// No targets found
@@ -382,11 +478,12 @@ public class QuickFfRunner {
 	}
 
 	private static CredentialsProvider createCredentialProvider(RepoMemoryData repoMemory, GithubApp app,
-			String installationId) throws IOException {
+			String installationId, String event) throws IOException {
 		try {
 			logger.info("[" + repoMemory.name + "] Authenticating application with server...");
 			String token = GithubAppInstallationTokens.getOrRequestInstallationAuthToken(app, installationId);
-			logger.info("[" + repoMemory.name + "] Authentication successful. Beginning process...");
+			logger.info("[" + repoMemory.name + "] Authentication successful!");
+			logger.info("[" + repoMemory.name + "] " + event);
 			return new UsernamePasswordCredentialsProvider("x-access-token", token);
 		} catch (IOException e) {
 			throw new IOException("Authenticating through API failed", e);
