@@ -457,7 +457,15 @@ public class QuickFfRunner {
 								}
 
 								// Send failed check
-								// FIXME
+								try {
+									JsonObject payload = new JsonObject();
+									payload.addProperty("state", "error");
+									payload.addProperty("decsription", "Fast-forwarding failed");
+									app.appInstallationApiRequest(push.installation.id, "/repos/"
+											+ push.repository.fullName + "/statuses/" + currentCommit.getName(), "POST",
+											payload);
+								} catch (IOException e2) {
+								}
 							}
 						} else {
 							// No targets found
