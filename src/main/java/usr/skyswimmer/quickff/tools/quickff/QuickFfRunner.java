@@ -414,7 +414,7 @@ public class QuickFfRunner {
 											client.push().setCredentialsProvider(createCredentialProvider(repoMemory,
 													app, push.installation.id, "Pushing " + target + " to upstream..."))
 													.call();
-
+											throw new Exception("test");
 										} finally {
 											client.checkout().setName(branch).call();
 											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
@@ -458,7 +458,6 @@ public class QuickFfRunner {
 
 								// Send failed check
 								// FIXME
-
 							}
 						} else {
 							// No targets found
