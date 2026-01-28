@@ -382,6 +382,11 @@ public class BaseControllerServer {
 			// Update
 			server.setContentSource(topSource);
 
+			// Apply default headers
+			for (String name : entity.defaultHeaders.keySet()) {
+				server.getDefaultHeaders().addHeader(name, entity.defaultHeaders.get(name));
+			}
+
 			// Set up content source
 			setupContentSource(topSource, topSet, server, "<default> for " + key, sharedContexts, src -> {
 				server.setContentSource(src);
@@ -390,8 +395,8 @@ public class BaseControllerServer {
 			// If needed, add vhosts
 			if (!entity.vhostSets.isEmpty()) {
 				// Add vhosts
-				server.setContentSource(new VhostsContentSource(vhostsByDomain, vhostsByDomainWildcards,
-						handlerSetTopType, contentSourceTopType, preferredDefault));
+				server.setContentSource(
+						new VhostsContentSource(vhostsByDomain, vhostsByDomainWildcards, preferredDefault));
 			}
 
 			// Add server

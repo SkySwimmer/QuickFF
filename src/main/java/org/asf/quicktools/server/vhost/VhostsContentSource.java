@@ -14,16 +14,11 @@ public class VhostsContentSource extends ContentSource {
 	private VhostDefinition preferredDefault;
 	private HashMap<String, VhostDefinition> vhostsByDomain;
 	private HashMap<String, VhostDefinition> vhostsByDomainWildcards;
-	private String handlerSetTopTypeDefault;
-	private String contentSourceTopTypeDefault;
 
 	public VhostsContentSource(HashMap<String, VhostDefinition> vhostsByDomain,
-			HashMap<String, VhostDefinition> vhostsByDomainWildcards, String handlerSetTopTypeDefault,
-			String contentSourceTopTypeDefault, VhostDefinition preferredDefault) {
+			HashMap<String, VhostDefinition> vhostsByDomainWildcards, VhostDefinition preferredDefault) {
 		this.vhostsByDomain = vhostsByDomain;
 		this.vhostsByDomainWildcards = vhostsByDomainWildcards;
-		this.handlerSetTopTypeDefault = handlerSetTopTypeDefault;
-		this.contentSourceTopTypeDefault = contentSourceTopTypeDefault;
 		this.preferredDefault = preferredDefault;
 	}
 
@@ -73,8 +68,8 @@ public class VhostsContentSource extends ContentSource {
 						break;
 
 					// Go up
-					domain = domain.substring(0, domain.indexOf("."));
-					domainFull = domainFull.substring(0, domainFull.indexOf("."));
+					domain = domain.substring(domain.indexOf(".") + 1);
+					domainFull = domainFull.substring(domainFull.indexOf(".") + 1);
 				}
 			}
 
@@ -82,6 +77,11 @@ public class VhostsContentSource extends ContentSource {
 			if (vhost == null)
 				vhost = preferredDefault;
 			if (vhost != null) {
+				// Apply default headers
+				for (String name : vhost.config.defaultHeaders.keySet()) {
+					response.addHeader(name, vhost.config.defaultHeaders.get(name));
+				}
+
 				// Check source
 				ContentSource source = vhost.source;
 				if (source != null) {
