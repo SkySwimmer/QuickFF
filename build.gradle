@@ -30,7 +30,7 @@ jar {
 		attributes([
 			"Specification-Title": "${projectName}",
 			"Specification-Vendor": "${authorName}",
-                        "Specification-Version": project.version,
+			"Specification-Version": project.version,
 			"Implementation-Title": project.name,
 			"Implementation-Version": project.version,
 			"Implementation-Vendor" :"${authorName}",

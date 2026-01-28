@@ -7,6 +7,9 @@ polylocal/
 # Dependencies
 deps/
 
+# Gradle
+.gradle/
+
 # Eclipse
 bin/
 .settings/
