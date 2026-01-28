@@ -6,6 +6,8 @@ import java.io.IOException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import com.google.gson.Gson;
+
 import usr.skyswimmer.githubwebhooks.api.server.GithubWebhookEventServer;
 
 public class TestServer {
@@ -34,8 +36,8 @@ public class TestServer {
 		// Handler
 		server.onWebhookActivate().addEventHandler(event -> {
 			// Log
-			logger.info("Received " + event.handler().getRequestMethod() + " " + event.handler().getRequestPath() + ": "
-					+ event.getWebhookBody());
+			logger.info("Received " + event.handler().getRequestMethod() + " " + event.handler().getRequestPath()
+					+ ":\n" + new Gson().newBuilder().setPrettyPrinting().create().toJson(event.getWebhookBody()));
 		});
 
 		// Init
