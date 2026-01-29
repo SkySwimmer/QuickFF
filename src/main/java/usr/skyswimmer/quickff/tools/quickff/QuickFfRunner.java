@@ -35,6 +35,8 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.transport.CredentialsProvider;
+import org.eclipse.jgit.transport.PushResult;
+import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
@@ -386,7 +388,7 @@ public class QuickFfRunner {
 								boolean hardMerge = false;
 								if (!found && config.hardMergeFor.containsKey(selectedPattern)
 										&& Stream.of(config.hardMergeFor.get(selectedPattern))
-												.allMatch(t -> t.equals(outputBranch))) {
+												.anyMatch(t -> t.equals(outputBranch))) {
 									// Hard merge
 									hardMerge = true;
 									found = true;
@@ -420,11 +422,13 @@ public class QuickFfRunner {
 
 												// Update
 												logger.info("[" + repoMemory.name + "] Updating " + target + "...");
-												client.pull().setRemote("origin").setRemoteBranchName(branch)
+												if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
 														.setCredentialsProvider(createCredentialProvider(repoMemory,
 																app, push.installation.id,
 																"Pulling " + branch + " from upstream..."))
-														.call();
+														.call().isSuccessful())
+													throw new IOException(
+															"Pull from branch " + branch + " did not succeed");
 											}
 											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
 											ObjectId currentBranch = repo.resolve("refs/heads/" + target);
@@ -441,11 +445,13 @@ public class QuickFfRunner {
 
 												// Update
 												logger.info("[" + repoMemory.name + "] Updating " + target + "...");
-												client.pull().setRemote("origin").setRemoteBranchName(target)
+												if (!client.pull().setRemote("origin").setRemoteBranchName(target)
 														.setCredentialsProvider(createCredentialProvider(repoMemory,
 																app, push.installation.id,
 																"Pulling " + target + " from upstream..."))
-														.call();
+														.call().isSuccessful())
+													throw new IOException(
+															"Pull from branch " + target + " did not succeed");
 											}
 
 											// Pull
@@ -456,11 +462,13 @@ public class QuickFfRunner {
 												logger.info("[" + repoMemory.name + "] Merging " + branch + " into "
 														+ target + "...");
 											if (!hardMerge) {
-												client.pull().setRemote("origin").setRemoteBranchName(branch)
+												if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
 														.setCredentialsProvider(createCredentialProvider(repoMemory,
 																app, push.installation.id,
 																"Fast-forwarding " + target + "..."))
-														.setFastForward(FastForwardMode.FF_ONLY).call();
+														.setFastForward(FastForwardMode.FF_ONLY).call().isSuccessful())
+													throw new IOException(
+															"Pull from branch " + target + " did not succeed");
 
 											} else {
 												// Get name
@@ -474,15 +482,29 @@ public class QuickFfRunner {
 												client.commit()
 														.setAuthor(name + "[bot]",
 																uId + "+" + name + "[bot]@users.noreply.github.com")
+														.setCommitter(name + "[bot]",
+																uId + "+" + name + "[bot]@users.noreply.github.com")
 														.setMessage("Merging " + branch + " into " + target).call();
 											}
 
 											// Merge succeeded
 											logger.info(
 													"[" + repoMemory.name + "] Merge succeeded, preparing to push...");
-											client.push().setCredentialsProvider(createCredentialProvider(repoMemory,
-													app, push.installation.id, "Pushing " + target + " to upstream..."))
-													.call();
+											for (PushResult res : client.push()
+													.setCredentialsProvider(createCredentialProvider(repoMemory, app,
+															push.installation.id,
+															"Pushing " + target + " to upstream..."))
+													.call()) {
+												for (RemoteRefUpdate update : res.getRemoteUpdates()) {
+													if (update.getStatus() != RemoteRefUpdate.Status.OK && update
+															.getStatus() != RemoteRefUpdate.Status.UP_TO_DATE) {
+														String messages = update.getMessage();
+														throw new IOException(
+																"Push command failed, remote did not accept the request",
+																messages != null ? new IOException(messages) : null);
+													}
+												}
+											}
 										} catch (Exception e) {
 											// Log
 											logger.error(
@@ -509,11 +531,13 @@ public class QuickFfRunner {
 
 												// Update
 												logger.info("[" + repoMemory.name + "] Updating " + target + "...");
-												client.pull().setRemote("origin").setRemoteBranchName(branch)
+												if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
 														.setCredentialsProvider(createCredentialProvider(repoMemory,
 																app, push.installation.id,
 																"Pulling " + branch + " from upstream..."))
-														.call();
+														.call().isSuccessful())
+													throw new IOException(
+															"Pull from branch " + branch + " did not succeed");
 											}
 											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
 										}
