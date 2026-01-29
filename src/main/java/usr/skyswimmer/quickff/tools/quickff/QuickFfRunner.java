@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Stream;
@@ -462,9 +463,18 @@ public class QuickFfRunner {
 														.setFastForward(FastForwardMode.FF_ONLY).call();
 
 											} else {
-												client.merge().include(repo.resolve("origin/" + branch))
-														.setMessage("Merging " + branch + " into " + target)
+												// Get name
+												String name = app.appApiRequest("/app", "GET", null).get("slug")
+														.getAsString();
+												String uId = app.apiRequest(
+														"/users/" + URLEncoder.encode(name + "[bot]", "UTF-8"), "GET",
+														null).get("id").getAsString();
+												client.merge().include(repo.resolve(branch)).setCommit(false)
 														.setFastForward(FastForwardMode.FF).call();
+												client.commit()
+														.setAuthor(name + "[bot]",
+																uId + "+" + name + "[bot]@users.noreply.github.com")
+														.setMessage("Merging " + branch + " into " + target).call();
 											}
 
 											// Merge succeeded
