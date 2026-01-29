@@ -16,6 +16,7 @@ public class AutoFfConfig implements ISerializedJsonEntity {
 
 	public boolean enabled = false;
 	public HashMap<String, String[]> branches = new LinkedHashMap<String, String[]>();
+	public HashMap<String, String[]> hardMergeFor = new LinkedHashMap<String, String[]>();
 
 	@Override
 	public void loadFromJson(JsonObject source, String scope) throws IOException {
@@ -29,6 +30,19 @@ public class AutoFfConfig implements ISerializedJsonEntity {
 				branchTargets.add(JsonUtils.getStringOrError(scope + " -> branches -> " + key, ele));
 			}
 			branches.put(key, branchTargets.toArray(t -> new String[t]));
+		}
+
+		if (source.has("hardMergeFor")) {
+			JsonObject hardMergeForList = JsonUtils.getObjectOrError(scope, source, "hardMergeFor");
+			for (String key : hardMergeForList.keySet()) {
+				JsonArray arr = JsonUtils.getArrayOrError(scope + " -> hardMergeFor -> " + key,
+						hardMergeForList.get(key));
+				ArrayList<String> branchTargets = new ArrayList<String>();
+				for (JsonElement ele : arr) {
+					branchTargets.add(JsonUtils.getStringOrError(scope + " -> hardMergeFor -> " + key, ele));
+				}
+				hardMergeFor.put(key, branchTargets.toArray(t -> new String[t]));
+			}
 		}
 	}
 
