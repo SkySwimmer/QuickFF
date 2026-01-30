@@ -4,8 +4,8 @@ import java.io.IOException;
 
 import com.google.gson.JsonObject;
 
-import usr.skyswimmer.githubwebhooks.api.config.ISerializedJsonEntity;
-import usr.skyswimmer.githubwebhooks.api.util.JsonUtils;
+import usr.skyswimmer.quicktoolsutils.json.ISerializedJsonEntity;
+import usr.skyswimmer.quicktoolsutils.json.JsonUtils;
 
 public class WebhookPushEventEntity implements ISerializedJsonEntity {
 

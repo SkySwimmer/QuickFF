@@ -8,7 +8,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.google.gson.Gson;
 
-import usr.skyswimmer.githubwebhooks.api.server.GithubWebhookEventServer;
+import usr.skyswimmer.githubwebhooks.server.GithubWebhookEventServer;
 
 public class TestServer {
 
