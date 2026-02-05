@@ -372,138 +372,191 @@ public class QuickFfRunner {
 								logger.info("[" + repoMemory.name + "] Last commit of " + target + ": "
 										+ lastCommit.getName());
 
-								// Check present in current branch
+								// Check up to date
 								boolean found = false;
 								List<Ref> refs = client.branchList().setListMode(ListMode.REMOTE)
-										.setContains(lastCommit.getName()).call();
+										.setContains(currentCommit.getName()).call();
 								for (Ref ref : refs) {
 									String name = ref.getName();
-									if (name.equals("refs/remotes/origin/" + branch)) {
+									if (name.equals("refs/remotes/origin/" + target)) {
 										found = true;
 										break;
 									}
 								}
+								if (!found) {
+									// Not up to date
 
-								// If not found, check hard merge
-								boolean hardMerge = false;
-								if (!found && config.hardMergeFor.containsKey(selectedPattern)
-										&& Stream.of(config.hardMergeFor.get(selectedPattern))
-												.anyMatch(t -> t.equals(outputBranch))) {
-									// Hard merge
-									hardMerge = true;
-									found = true;
-								}
+									// Check present in current branch
+									found = false;
+									refs = client.branchList().setListMode(ListMode.REMOTE)
+											.setContains(lastCommit.getName()).call();
+									for (Ref ref : refs) {
+										String name = ref.getName();
+										if (name.equals("refs/remotes/origin/" + branch)) {
+											found = true;
+											break;
+										}
+									}
 
-								// Check result
-								if (found) {
-									// Log
-									try {
-										if (!hardMerge)
-											logger.info("[" + repoMemory.name + "] Fast-forward needed for " + target
-													+ "!");
-										else
-											logger.info("[" + repoMemory.name + "] Merge needed for " + target + "!");
+									// If not found, check hard merge
+									boolean hardMerge = false;
+									if (!found && config.hardMergeFor.containsKey(selectedPattern)
+											&& Stream.of(config.hardMergeFor.get(selectedPattern))
+													.anyMatch(t -> t.equals(outputBranch))) {
+										// Hard merge
+										hardMerge = true;
+										found = true;
+									}
 
-										// Fast-forward
+									// Check result
+									if (found) {
+										// Log
 										try {
-											// Checkout
-											logger.info("[" + repoMemory.name + "] Checking out " + target + "...");
-											ObjectId currentBranchHead = repo.resolve("refs/heads/" + branch);
-											if (currentBranchHead == null) {
-												// Checkout new
-												client.reset().setMode(ResetType.HARD)
-														.setRef("origin/" + repo.getBranch()).call();
-												client.checkout().setName(branch).setCreateBranch(true)
-														.setUpstreamMode(SetupUpstreamMode.TRACK)
-														.setStartPoint("origin/" + branch).call();
-											} else {
-												// Checkout existing
-												client.checkout().setName(branch).call();
-
-												// Update
-												logger.info("[" + repoMemory.name + "] Updating " + target + "...");
-												if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
-														.setCredentialsProvider(createCredentialProvider(repoMemory,
-																app, push.installation.id,
-																"Pulling " + branch + " from upstream..."))
-														.call().isSuccessful())
-													throw new IOException(
-															"Pull from branch " + branch + " did not succeed");
-											}
-											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
-											ObjectId currentBranch = repo.resolve("refs/heads/" + target);
-											if (currentBranch == null) {
-												// Checkout new
-												client.checkout().setName(target).setCreateBranch(true)
-														.setUpstreamMode(SetupUpstreamMode.TRACK)
-														.setStartPoint("origin/" + target).call();
-											} else {
-												// Checkout existing
-												client.checkout().setName(target).call();
-												client.reset().setMode(ResetType.HARD).setRef("origin/" + target)
-														.call();
-
-												// Update
-												logger.info("[" + repoMemory.name + "] Updating " + target + "...");
-												if (!client.pull().setRemote("origin").setRemoteBranchName(target)
-														.setCredentialsProvider(createCredentialProvider(repoMemory,
-																app, push.installation.id,
-																"Pulling " + target + " from upstream..."))
-														.call().isSuccessful())
-													throw new IOException(
-															"Pull from branch " + target + " did not succeed");
-											}
-
-											// Pull
 											if (!hardMerge)
-												logger.info("[" + repoMemory.name + "] Fast-forwarding " + target
-														+ " from " + branch + "...");
+												logger.info("[" + repoMemory.name + "] Fast-forward needed for "
+														+ target + "!");
 											else
-												logger.info("[" + repoMemory.name + "] Merging " + branch + " into "
-														+ target + "...");
-											if (!hardMerge) {
-												if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
+												logger.info(
+														"[" + repoMemory.name + "] Merge needed for " + target + "!");
+
+											// Fast-forward
+											try {
+												// Checkout
+												logger.info("[" + repoMemory.name + "] Checking out " + target + "...");
+												ObjectId currentBranchHead = repo.resolve("refs/heads/" + branch);
+												if (currentBranchHead == null) {
+													// Checkout new
+													client.reset().setMode(ResetType.HARD)
+															.setRef("origin/" + repo.getBranch()).call();
+													client.checkout().setName(branch).setCreateBranch(true)
+															.setUpstreamMode(SetupUpstreamMode.TRACK)
+															.setStartPoint("origin/" + branch).call();
+												} else {
+													// Checkout existing
+													client.checkout().setName(branch).call();
+
+													// Update
+													logger.info("[" + repoMemory.name + "] Updating " + target + "...");
+													if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
+															.setCredentialsProvider(createCredentialProvider(repoMemory,
+																	app, push.installation.id,
+																	"Pulling " + branch + " from upstream..."))
+															.call().isSuccessful())
+														throw new IOException(
+																"Pull from branch " + branch + " did not succeed");
+												}
+												client.reset().setMode(ResetType.HARD).setRef("origin/" + branch)
+														.call();
+												ObjectId currentBranch = repo.resolve("refs/heads/" + target);
+												if (currentBranch == null) {
+													// Checkout new
+													client.checkout().setName(target).setCreateBranch(true)
+															.setUpstreamMode(SetupUpstreamMode.TRACK)
+															.setStartPoint("origin/" + target).call();
+												} else {
+													// Checkout existing
+													client.checkout().setName(target).call();
+													client.reset().setMode(ResetType.HARD).setRef("origin/" + target)
+															.call();
+
+													// Update
+													logger.info("[" + repoMemory.name + "] Updating " + target + "...");
+													if (!client.pull().setRemote("origin").setRemoteBranchName(target)
+															.setCredentialsProvider(createCredentialProvider(repoMemory,
+																	app, push.installation.id,
+																	"Pulling " + target + " from upstream..."))
+															.call().isSuccessful())
+														throw new IOException(
+																"Pull from branch " + target + " did not succeed");
+												}
+
+												// Pull
+												if (!hardMerge)
+													logger.info("[" + repoMemory.name + "] Fast-forwarding " + target
+															+ " from " + branch + "...");
+												else
+													logger.info("[" + repoMemory.name + "] Merging " + branch + " into "
+															+ target + "...");
+												if (!hardMerge) {
+													if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
+															.setCredentialsProvider(createCredentialProvider(repoMemory,
+																	app, push.installation.id,
+																	"Fast-forwarding " + target + "..."))
+															.setFastForward(FastForwardMode.FF_ONLY).call()
+															.isSuccessful())
+														throw new IOException(
+																"Pull from branch " + target + " did not succeed");
+
+												} else {
+													// Get name
+													String name = app.appApiRequest("/app", "GET", null).get("slug")
+															.getAsString();
+													String uId = app.apiRequest(
+															"/users/" + URLEncoder.encode(name + "[bot]", "UTF-8"),
+															"GET", null).get("id").getAsString();
+													client.merge().include(repo.resolve(branch)).setCommit(false)
+															.setFastForward(FastForwardMode.FF).call();
+													client.commit()
+															.setAuthor(name + "[bot]",
+																	uId + "+" + name + "[bot]@users.noreply.github.com")
+															.setCommitter(name + "[bot]",
+																	uId + "+" + name + "[bot]@users.noreply.github.com")
+															.setMessage("Merging " + branch + " into " + target).call();
+												}
+
+												// Merge succeeded
+												logger.info("[" + repoMemory.name
+														+ "] Merge succeeded, preparing to push...");
+												for (PushResult res : client.push()
 														.setCredentialsProvider(createCredentialProvider(repoMemory,
 																app, push.installation.id,
-																"Fast-forwarding " + target + "..."))
-														.setFastForward(FastForwardMode.FF_ONLY).call().isSuccessful())
-													throw new IOException(
-															"Pull from branch " + target + " did not succeed");
-
-											} else {
-												// Get name
-												String name = app.appApiRequest("/app", "GET", null).get("slug")
-														.getAsString();
-												String uId = app.apiRequest(
-														"/users/" + URLEncoder.encode(name + "[bot]", "UTF-8"), "GET",
-														null).get("id").getAsString();
-												client.merge().include(repo.resolve(branch)).setCommit(false)
-														.setFastForward(FastForwardMode.FF).call();
-												client.commit()
-														.setAuthor(name + "[bot]",
-																uId + "+" + name + "[bot]@users.noreply.github.com")
-														.setCommitter(name + "[bot]",
-																uId + "+" + name + "[bot]@users.noreply.github.com")
-														.setMessage("Merging " + branch + " into " + target).call();
-											}
-
-											// Merge succeeded
-											logger.info(
-													"[" + repoMemory.name + "] Merge succeeded, preparing to push...");
-											for (PushResult res : client.push()
-													.setCredentialsProvider(createCredentialProvider(repoMemory, app,
-															push.installation.id,
-															"Pushing " + target + " to upstream..."))
-													.call()) {
-												for (RemoteRefUpdate update : res.getRemoteUpdates()) {
-													if (update.getStatus() != RemoteRefUpdate.Status.OK && update
-															.getStatus() != RemoteRefUpdate.Status.UP_TO_DATE) {
-														String messages = update.getMessage();
-														throw new IOException(
-																"Push command failed, remote did not accept the request",
-																messages != null ? new IOException(messages) : null);
+																"Pushing " + target + " to upstream..."))
+														.call()) {
+													for (RemoteRefUpdate update : res.getRemoteUpdates()) {
+														if (update.getStatus() != RemoteRefUpdate.Status.OK && update
+																.getStatus() != RemoteRefUpdate.Status.UP_TO_DATE) {
+															String messages = update.getMessage();
+															throw new IOException(
+																	"Push command failed, remote did not accept the request",
+																	messages != null ? new IOException(messages)
+																			: null);
+														}
 													}
 												}
+											} catch (Exception e) {
+												// Log
+												logger.error("[" + repoMemory.name
+														+ "] An error occurred while fast-forwarding, cancelled.", e);
+
+												// Save error
+												if (!failedBranches.isEmpty())
+													failedBranches += "\n";
+												failedBranches += " - " + target + ": " + e.getMessage();
+											} finally {
+												ObjectId currentBranchHead = repo.resolve("refs/heads/" + branch);
+												if (currentBranchHead == null) {
+													// Checkout new
+													client.reset().setMode(ResetType.HARD)
+															.setRef("origin/" + repo.getBranch()).call();
+													client.checkout().setName(branch).setCreateBranch(true)
+															.setUpstreamMode(SetupUpstreamMode.TRACK)
+															.setStartPoint("origin/" + branch).call();
+												} else {
+													// Checkout existing
+													client.checkout().setName(branch).call();
+
+													// Update
+													logger.info("[" + repoMemory.name + "] Updating " + target + "...");
+													if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
+															.setCredentialsProvider(createCredentialProvider(repoMemory,
+																	app, push.installation.id,
+																	"Pulling " + branch + " from upstream..."))
+															.call().isSuccessful())
+														throw new IOException(
+																"Pull from branch " + branch + " did not succeed");
+												}
+												client.reset().setMode(ResetType.HARD).setRef("origin/" + branch)
+														.call();
 											}
 										} catch (Exception e) {
 											// Log
@@ -516,44 +569,14 @@ public class QuickFfRunner {
 											if (!failedBranches.isEmpty())
 												failedBranches += "\n";
 											failedBranches += " - " + target + ": " + e.getMessage();
-										} finally {
-											ObjectId currentBranchHead = repo.resolve("refs/heads/" + branch);
-											if (currentBranchHead == null) {
-												// Checkout new
-												client.reset().setMode(ResetType.HARD)
-														.setRef("origin/" + repo.getBranch()).call();
-												client.checkout().setName(branch).setCreateBranch(true)
-														.setUpstreamMode(SetupUpstreamMode.TRACK)
-														.setStartPoint("origin/" + branch).call();
-											} else {
-												// Checkout existing
-												client.checkout().setName(branch).call();
-
-												// Update
-												logger.info("[" + repoMemory.name + "] Updating " + target + "...");
-												if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
-														.setCredentialsProvider(createCredentialProvider(repoMemory,
-																app, push.installation.id,
-																"Pulling " + branch + " from upstream..."))
-														.call().isSuccessful())
-													throw new IOException(
-															"Pull from branch " + branch + " did not succeed");
-											}
-											client.reset().setMode(ResetType.HARD).setRef("origin/" + branch).call();
 										}
-									} catch (Exception e) {
-										// Log
-										logger.error("[" + repoMemory.name
-												+ "] An error occurred while fast-forwarding, cancelled.", e);
-
-										// Save error
-										if (!failedBranches.isEmpty())
-											failedBranches += "\n";
-										failedBranches += " - " + target + ": " + e.getMessage();
+									} else {
+										logger.info("[" + repoMemory.name + "] Fast-forward not possible for " + target
+												+ "! Branches diverged!");
 									}
 								} else {
-									logger.info("[" + repoMemory.name + "] Fast-forward not possible for " + target
-											+ "! Branches diverged!");
+									logger.info(
+											"[" + repoMemory.name + "] Branch " + target + " is already up to date");
 								}
 							}
 

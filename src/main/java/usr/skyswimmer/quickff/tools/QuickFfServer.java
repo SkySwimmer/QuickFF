@@ -35,8 +35,8 @@ public class QuickFfServer {
 		}
 
 		// Create instance
-		logger = LogManager.getLogger("quickff");
 		GithubWebhookEventServer server = new GithubWebhookEventServer(configFile, "quickff");
+		logger = LogManager.getLogger("quickff");
 
 		// Handler
 		server.onWebhookActivate().addEventHandler(event -> {
