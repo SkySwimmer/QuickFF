@@ -62,9 +62,9 @@ artifacts {
 }
 
 dependencies {
-	implementation project("connective-http")
-	implementation project("quicktools-githubwebhooksbase")
-	implementation project("quicktools-utils")
+	implementation project(":connective-http")
+	implementation project(":quicktools-githubwebhooksbase")
+	implementation project(":quicktools-utils")
 	
 	implementation group: 'org.eclipse.jgit', name: 'org.eclipse.jgit', version: '7.5.0.202512021534-r'
 	implementation group: 'com.google.code.gson', name: 'gson', version: '2.13.2'
