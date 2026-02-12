@@ -14,6 +14,8 @@ def projectName = "QuickFF"
 def authorName = "SkySwimmer"
 def pkg = "${group}.${projectId}"
 
+buildDir = 'build/gradleout'
+
 apply plugin: 'eclipse'
 apply plugin: 'idea'
 
