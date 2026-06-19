@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLEncoder;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Stream;
@@ -27,10 +28,13 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand.ListMode;
 import org.eclipse.jgit.api.MergeCommand.FastForwardMode;
 import org.eclipse.jgit.api.ResetCommand.ResetType;
+import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.BranchConfig.BranchRebaseMode;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
@@ -38,6 +42,8 @@ import org.eclipse.jgit.transport.CredentialsProvider;
 import org.eclipse.jgit.transport.PushResult;
 import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.treewalk.filter.PathFilter;
 
@@ -56,6 +62,7 @@ public class QuickFfRunner {
 		public Object lock = new Object();
 
 		public String name;
+		public String fullUrl;
 		public File repoDir;
 
 		public boolean isOpen;
@@ -63,8 +70,9 @@ public class QuickFfRunner {
 
 		public long lastTouched;
 
-		public RepoMemoryData(String name, File repoDir) {
+		public RepoMemoryData(String name, String fullUrl, File repoDir) {
 			this.name = name;
+			this.fullUrl = fullUrl;
 			this.repoDir = repoDir;
 			repoDir.mkdirs();
 		}
@@ -90,11 +98,12 @@ public class QuickFfRunner {
 		// Go through cache
 		cacheBase = new File(workingDirBase, "repository-temp");
 		cacheBase.mkdirs();
-		for (File dir : cacheBase.listFiles(t -> t.isDirectory())) {
-			// Remove
-			logger.info("Clearing cache: " + dir.getName());
-			FileUtils.deleteDir(dir);
-		}
+		// for (File dir : cacheBase.listFiles(t -> t.isDirectory())) { // FIXME:
+		// re-enable
+		// // Remove
+		// logger.info("Clearing cache: " + dir.getName());
+		// FileUtils.deleteDir(dir);
+		// }
 
 		// Cache remover
 		AsyncTaskManager.runAsync(() -> {
@@ -119,7 +128,7 @@ public class QuickFfRunner {
 
 								// Remove from memory
 								synchronized (repositoryMemory) {
-									repositoryMemory.remove(repo.name);
+									repositoryMemory.remove(repo.fullUrl);
 								}
 							}
 						}
@@ -144,10 +153,11 @@ public class QuickFfRunner {
 		RepoMemoryData repoMemory;
 		try {
 			synchronized (repositoryMemory) {
-				if (!repositoryMemory.containsKey(push.repository.fullName))
-					repositoryMemory.put(push.repository.fullName, new RepoMemoryData(push.repository.fullName,
-							new File(cacheBase, HashUtils.sha256Hash(push.repository.fullName.getBytes("UTF-8")))));
-				repoMemory = repositoryMemory.get(push.repository.fullName);
+				if (!repositoryMemory.containsKey(push.repository.httpUrl))
+					repositoryMemory.put(push.repository.httpUrl, new RepoMemoryData(push.repository.fullName,
+							push.repository.httpUrl,
+							new File(cacheBase, HashUtils.sha256Hash(push.repository.httpUrl.getBytes("UTF-8")))));
+				repoMemory = repositoryMemory.get(push.repository.httpUrl);
 				repoMemory.open();
 			}
 
@@ -265,6 +275,7 @@ public class QuickFfRunner {
 										"POST", payload);
 							} catch (IOException e2) {
 							}
+
 							// Throw
 							throw e;
 						}
@@ -372,7 +383,8 @@ public class QuickFfRunner {
 								logger.info("[" + repoMemory.name + "] Last commit of " + target + ": "
 										+ lastCommit.getName());
 
-								// Check up to date
+								// Check if target is up to date by checking if the current branch's commit is
+								// present in the target branch, if so, skip
 								boolean found = false;
 								List<Ref> refs = client.branchList().setListMode(ListMode.REMOTE)
 										.setContains(currentCommit.getName()).call();
@@ -387,6 +399,16 @@ public class QuickFfRunner {
 									// Not up to date
 
 									// Check present in current branch
+									// We check if the last commit of the target branch is present in the source
+									// branch, if so, the source branch is ahead, and the target branch needs to be
+									// fastforwarded, if target's last commit is absent from the source branch, the
+									// branches diverged and needs a merge
+									//
+									// By default, autoff only fast-forwards if the target has not diverged and is
+									// directly behind the source branch
+									//
+									// But configuration can allow autoff to merge the source branch into the target
+									// branch if the target diverged
 									found = false;
 									refs = client.branchList().setListMode(ListMode.REMOTE)
 											.setContains(lastCommit.getName()).call();
@@ -399,13 +421,53 @@ public class QuickFfRunner {
 									}
 
 									// If not found, check hard merge
+									String strat = "ff";
 									boolean hardMerge = false;
 									if (!found && config.hardMergeFor.containsKey(selectedPattern)
 											&& Stream.of(config.hardMergeFor.get(selectedPattern))
 													.anyMatch(t -> t.equals(outputBranch))) {
-										// Hard merge
-										hardMerge = true;
+										// The commit history doesnt align, but hard merge is preferred
+										strat = "merge"; // Use merge by default unless overridden
+
+										// Check strategy
+										if (config.hardMergeStrategies.containsKey(selectedPattern)) {
+											// Get
+											Object val = config.hardMergeStrategies.get(selectedPattern);
+											if (val instanceof HashMap) {
+												// Map
+												// Get by branch
+												HashMap<String, String> map = (HashMap<String, String>) val;
+												if (map.containsKey(outputBranch)) {
+													// Use for pattern
+													strat = map.get(outputBranch);
+												} else if (map.containsKey("*")) {
+													// Use default
+													strat = map.get("*");
+												}
+											} else {
+												// String
+												// Default
+												strat = val.toString();
+											}
+										}
+
+										// Needs fast forward
 										found = true;
+
+										// Check
+										if (strat.equalsIgnoreCase("ff") || strat.equalsIgnoreCase("forceff")) {
+											// Fast-forward if possible
+											if (strat.equalsIgnoreCase("ff")) {
+												// Regular fastforward is not possible as branches do not align
+												found = false;
+											}
+
+											// Forceff checks file contents and then rebases if there are no differences
+											hardMerge = false;
+										} else {
+											// Hard merge
+											hardMerge = true;
+										}
 									}
 
 									// Check result
@@ -420,6 +482,7 @@ public class QuickFfRunner {
 														"[" + repoMemory.name + "] Merge needed for " + target + "!");
 
 											// Fast-forward
+											boolean merged = true;
 											try {
 												// Checkout
 												logger.info("[" + repoMemory.name + "] Checking out " + target + "...");
@@ -477,7 +540,8 @@ public class QuickFfRunner {
 												else
 													logger.info("[" + repoMemory.name + "] Merging " + branch + " into "
 															+ target + "...");
-												if (!hardMerge) {
+												if (!hardMerge && strat.equalsIgnoreCase("ff")) {
+													// Use fastforwarding through pull
 													if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
 															.setCredentialsProvider(createCredentialProvider(repoMemory,
 																	app, push.installation.id,
@@ -488,38 +552,194 @@ public class QuickFfRunner {
 																"Pull from branch " + target + " did not succeed");
 
 												} else {
-													// Get name
-													String name = app.appApiRequest("/app", "GET", null).get("slug")
-															.getAsString();
-													String uId = app.apiRequest(
-															"/users/" + URLEncoder.encode(name + "[bot]", "UTF-8"),
-															"GET", null).get("id").getAsString();
-													client.merge().include(repo.resolve(branch)).setCommit(false)
-															.setFastForward(FastForwardMode.FF).call();
-													client.commit()
-															.setAuthor(name + "[bot]",
-																	uId + "+" + name + "[bot]@users.noreply.github.com")
-															.setCommitter(name + "[bot]",
-																	uId + "+" + name + "[bot]@users.noreply.github.com")
-															.setMessage("Merging " + branch + " into " + target).call();
+													// Check if using forceff
+													if (strat.equalsIgnoreCase("forceff")) {
+														// Forced fastforward
+														//
+														// Basically, if the file contents match, ditch commit history,
+														// and fast forward
+														//
+														// This strategy only works to sync up merge squash commits down
+														// to the source branch they came from, it will not allow
+														// rebasing, or fastforwarding, if the contents do not match
+														//
+														// It will use regular fastforward when the current HEAD is
+														// present in the target branch's head, that is because the
+														// merge strategy is always ff unless the heads are out of sync,
+														// this means forcedff isnt used if the branch can be
+														// fastforwarded directly!!!
+														//
+														// So no need to check if the branch can be fastforwarded
+														// normally, we only need to check if contents match between
+														// branches and if so, ditch commit history and sync up
+														//
+														// Futhermore we can depend on the commit history being in sync
+														// with the target branch, as a pull is already done!
+
+														// Find last commit prior to divergence if any
+														// Basically, walk source branch, find the first commit thats
+														// present in target
+														//
+														// This is to check if the branches used to be in sync
+														revWalk = new RevWalk(repo);
+														RevCommit latestSource = revWalk
+																.parseCommit(repo.resolve("refs/heads/" + branch));
+														revWalk.markStart(latestSource);
+														RevCommit c = revWalk.next();
+														RevCommit lastCommon = null;
+														while (c != null) {
+															// Check if the commit is present
+															boolean f = false;
+															refs = client.branchList().setListMode(ListMode.REMOTE)
+																	.setContains(c.getName()).call();
+															for (Ref ref : refs) {
+																String name = ref.getName();
+																if (name.equals("refs/remotes/origin/" + target)) {
+																	f = true;
+																	break;
+																}
+															}
+															if (f) {
+																// The branches match at this point
+																lastCommon = c;
+																break;
+															}
+
+															// Next
+															c = revWalk.next();
+														}
+
+														// Check if found a common commit
+														merged = false;
+														if (lastCommon != null) {
+															// Found a common commit
+
+															// Check if the contents between the two branches are the
+															// same even if commit history is not
+															logger.info("[" + repoMemory.name
+																	+ "] Comparing content of branch " + target
+																	+ " with " + branch + "...");
+															List<DiffEntry> diff = client.diff()
+																	.setOldTree(getTreeIterator(repo,
+																			repo.exactRef("refs/heads/" + branch)))
+																	.setNewTree(getTreeIterator(repo,
+																			repo.exactRef("refs/heads/" + target)))
+																	.setShowNameAndStatusOnly(true)
+																	.call();
+															if (diff.size() == 0) {
+																// No difference
+
+																// Fast forward
+																logger.info(
+																		"[" + repoMemory.name + "] Content of " + branch
+																				+ " matches " + target
+																				+ "! Fast-forwarding history...");
+																client.reset().setMode(ResetType.HARD)
+																		.setRef("origin/" + branch).call();
+																merged = true;
+																logger.info("[" + repoMemory.name
+																		+ "] Merge succeeded, forcing push...");
+																for (PushResult res : client.push().setForce(true)
+																		.setCredentialsProvider(
+																				createCredentialProvider(repoMemory,
+																						app, push.installation.id,
+																						"Pushing " + target
+																								+ " to upstream..."))
+																		.call()) {
+																	for (RemoteRefUpdate update : res
+																			.getRemoteUpdates()) {
+																		if (update
+																				.getStatus() != RemoteRefUpdate.Status.OK
+																				&& update
+																						.getStatus() != RemoteRefUpdate.Status.UP_TO_DATE) {
+																			String messages = update.getMessage();
+																			throw new IOException(
+																					"Push command failed, remote did not accept the request",
+																					messages != null
+																							? new IOException(messages)
+																							: null);
+																		}
+																	}
+																}
+															} else {
+																// Diverged
+																logger.info("[" + repoMemory.name
+																		+ "] Fast-forward not possible for " + target
+																		+ "! Branches diverged!");
+															}
+														} else {
+															// Diverged
+															logger.info("[" + repoMemory.name
+																	+ "] Fast-forward not possible for " + target
+																	+ "! Branches diverged!");
+														}
+													} else {
+														// Merge with strategy
+
+														// Get name
+														String name = app.appApiRequest("/app", "GET", null).get("slug")
+																.getAsString();
+														String uId = app.apiRequest(
+																"/users/" + URLEncoder.encode(name + "[bot]", "UTF-8"),
+																"GET", null).get("id").getAsString();
+
+														// Do merge
+														if (strat.equalsIgnoreCase("merge")) {
+															// Merge
+															client.merge().include(repo.resolve(branch))
+																	.setCommit(false)
+																	.setFastForward(FastForwardMode.FF).call();
+
+															// Commit merge
+															client.commit()
+																	.setAuthor(name + "[bot]",
+																			uId + "+" + name
+																					+ "[bot]@users.noreply.github.com")
+																	.setCommitter(name + "[bot]",
+																			uId + "+" + name
+																					+ "[bot]@users.noreply.github.com")
+																	.setMessage("Merging " + branch + " into " + target)
+																	.call();
+														} else if (strat.equalsIgnoreCase("rebase")) {
+															// Rebase
+															if (!client.pull().setRebase(BranchRebaseMode.REBASE)
+																	.setRemote("origin")
+																	.setRemoteBranchName(branch)
+																	.setCredentialsProvider(
+																			createCredentialProvider(repoMemory,
+																					app, push.installation.id,
+																					"Rebasing " + branch + " into "
+																							+ target
+																							+ "..."))
+																	.setFastForward(FastForwardMode.FF_ONLY).call()
+																	.isSuccessful()) {
+																throw new IOException(
+																		"Pull and rebase from branch " + target
+																				+ " did not succeed");
+															}
+														}
+													}
 												}
 
 												// Merge succeeded
-												logger.info("[" + repoMemory.name
-														+ "] Merge succeeded, preparing to push...");
-												for (PushResult res : client.push()
-														.setCredentialsProvider(createCredentialProvider(repoMemory,
-																app, push.installation.id,
-																"Pushing " + target + " to upstream..."))
-														.call()) {
-													for (RemoteRefUpdate update : res.getRemoteUpdates()) {
-														if (update.getStatus() != RemoteRefUpdate.Status.OK && update
-																.getStatus() != RemoteRefUpdate.Status.UP_TO_DATE) {
-															String messages = update.getMessage();
-															throw new IOException(
-																	"Push command failed, remote did not accept the request",
-																	messages != null ? new IOException(messages)
-																			: null);
+												if (merged) {
+													logger.info("[" + repoMemory.name
+															+ "] Merge succeeded, preparing to push...");
+													for (PushResult res : client.push()
+															.setCredentialsProvider(createCredentialProvider(repoMemory,
+																	app, push.installation.id,
+																	"Pushing " + target + " to upstream..."))
+															.call()) {
+														for (RemoteRefUpdate update : res.getRemoteUpdates()) {
+															if (update.getStatus() != RemoteRefUpdate.Status.OK
+																	&& update
+																			.getStatus() != RemoteRefUpdate.Status.UP_TO_DATE) {
+																String messages = update.getMessage();
+																throw new IOException(
+																		"Push command failed, remote did not accept the request",
+																		messages != null ? new IOException(messages)
+																				: null);
+															}
 														}
 													}
 												}
@@ -533,30 +753,36 @@ public class QuickFfRunner {
 													failedBranches += "\n";
 												failedBranches += " - " + target + ": " + e.getMessage();
 											} finally {
-												ObjectId currentBranchHead = repo.resolve("refs/heads/" + branch);
-												if (currentBranchHead == null) {
-													// Checkout new
-													client.reset().setMode(ResetType.HARD)
-															.setRef("origin/" + repo.getBranch()).call();
-													client.checkout().setName(branch).setCreateBranch(true)
-															.setUpstreamMode(SetupUpstreamMode.TRACK)
-															.setStartPoint("origin/" + branch).call();
-												} else {
-													// Checkout existing
-													client.checkout().setName(branch).call();
+												if (merged) {
+													ObjectId currentBranchHead = repo.resolve("refs/heads/" + branch);
+													if (currentBranchHead == null) {
+														// Checkout new
+														client.reset().setMode(ResetType.HARD)
+																.setRef("origin/" + repo.getBranch()).call();
+														client.checkout().setName(branch).setCreateBranch(true)
+																.setUpstreamMode(SetupUpstreamMode.TRACK)
+																.setStartPoint("origin/" + branch).call();
+													} else {
+														// Checkout existing
+														client.checkout().setName(branch).call();
 
-													// Update
-													logger.info("[" + repoMemory.name + "] Updating " + target + "...");
-													if (!client.pull().setRemote("origin").setRemoteBranchName(branch)
-															.setCredentialsProvider(createCredentialProvider(repoMemory,
-																	app, push.installation.id,
-																	"Pulling " + branch + " from upstream..."))
-															.call().isSuccessful())
-														throw new IOException(
-																"Pull from branch " + branch + " did not succeed");
+														// Update
+														logger.info(
+																"[" + repoMemory.name + "] Updating " + branch + "...");
+														if (!client.pull().setRemote("origin")
+																.setRemoteBranchName(branch)
+																.setCredentialsProvider(
+																		createCredentialProvider(repoMemory,
+																				app, push.installation.id,
+																				"Pulling " + branch
+																						+ " from upstream..."))
+																.call().isSuccessful())
+															throw new IOException(
+																	"Pull from branch " + branch + " did not succeed");
+													}
+													client.reset().setMode(ResetType.HARD).setRef("origin/" + branch)
+															.call();
 												}
-												client.reset().setMode(ResetType.HARD).setRef("origin/" + branch)
-														.call();
 											}
 										} catch (Exception e) {
 											// Log
@@ -619,7 +845,8 @@ public class QuickFfRunner {
 						}
 					} finally {
 						// Close
-						client.close();
+						if (client != null)
+							client.close();
 					}
 				} catch (Exception e) {
 					logger.error("[" + repoMemory.name + "] An error occurred running QuickFF, cancelled.", e);
@@ -628,6 +855,22 @@ public class QuickFfRunner {
 				// Close
 				repoMemory.close();
 			}
+		}
+	}
+
+	private static AbstractTreeIterator getTreeIterator(Repository repo, Ref ref) throws IOException {
+		RevWalk walk = new RevWalk(repo);
+		try {
+			// Load
+			RevCommit lastCommit = walk.parseCommit(ref.getObjectId());
+			RevTree tree = walk.parseTree(lastCommit.getTree().getId());
+			CanonicalTreeParser parser = new CanonicalTreeParser();
+			ObjectReader reader = repo.newObjectReader();
+			parser.reset(reader, tree.getId());
+			reader.close();
+			return parser;
+		} finally {
+			walk.close();
 		}
 	}
 
