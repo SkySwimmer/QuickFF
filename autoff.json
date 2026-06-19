@@ -1,6 +1,6 @@
 {
     "enabled": true,
-    
+
     "branches": {
         "experimental": [
             "develop"
@@ -16,5 +16,9 @@
         "stable": [
             "experimental"
         ]
+    },
+    "hardMergeStrategies": {
+        "experimental": "forceff",
+        "stable": "forceff"
     }
 }

@@ -3,7 +3,7 @@ plugins {
 	id 'maven-publish'
 }
 
-version = "a1.0"
+version = "a1.1"
 group = "usr.skyswimmer"
 
 sourceCompatibility = '1.17'
