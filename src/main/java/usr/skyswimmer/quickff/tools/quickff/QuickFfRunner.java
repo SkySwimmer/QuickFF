@@ -98,12 +98,11 @@ public class QuickFfRunner {
 		// Go through cache
 		cacheBase = new File(workingDirBase, "repository-temp");
 		cacheBase.mkdirs();
-		// for (File dir : cacheBase.listFiles(t -> t.isDirectory())) { // FIXME:
-		// re-enable
-		// // Remove
-		// logger.info("Clearing cache: " + dir.getName());
-		// FileUtils.deleteDir(dir);
-		// }
+		for (File dir : cacheBase.listFiles(t -> t.isDirectory())) {
+			// Remove
+			logger.info("Clearing cache: " + dir.getName());
+			FileUtils.deleteDir(dir);
+		}
 
 		// Cache remover
 		AsyncTaskManager.runAsync(() -> {
